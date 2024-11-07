@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <nav>
+        <a href="{{url_for('dashboard')}}">Homes</a>
+        <a href="{{url_for('adding_expense')}}">All Expenses</a>
+        <a href="{{url_for('logout')}}">Logout</a>    
+    </nav>
+    
+    <h1>Add a New Expense</h1>
+    <form method="POST">
+        <label for="amount">Amount:</label>
+        <input type="number" name="amount" id="amount" step="0.01" min="0" required ><br>
+        <label for="description">Description:</label>
+        <input type="text" name="description" id="description"><br>
+        <label for="category">Category:</label>
+        <select name="category" id="category" required>
+            <option value="">Select a category</option>
+            {% for category in categories %}
+                <option value="{{ category }}">{{ category }}</option>
+            {% endfor %}
+        </select><br>
+        <button type="submit">Add Expense</button>
+    </form>
+
+    {% if expenses %}
+    <form method="POST">
+        <ul>
+            {% for expense in expenses %}
+                <li>
+                    <strong>{{ expense['description'] }}</strong><br>
+                    Category: {{ expense['category'] }}<br>
+                    Amount: ${{ expense['amount'] }}<br>
+                    Date: {{ expense['timestamp'].strftime('%Y-%m-%d %H:%M:%S') }}<br>
+                    
+                    <input type="text" name="expense_description_{{ expense['_id'] }}" value="{{ expense['description'] }}" placeholder="Description">
+                    <select name="expense_category_{{ expense['_id'] }}">
+                        {% for category in categories %}
+                            <option value="{{ category }}" {% if expense['category'] == category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="number" name="expense_amount_{{ expense['_id'] }}" value="{{ expense['amount'] }}" placeholder="Amount">
+                    <button type="submit" name="edit_expense" value="{{ expense['_id'] }}">Update</button><br><br>
+                </li>
+            {% endfor %}
+        </ul>
+    </form>
+    {% else %}
+        <p>You have no expenses yet.</p>
+    {% endif %}
+</body>
+</html>
