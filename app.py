@@ -2,11 +2,14 @@ from flask import Flask, request, jsonify, flash, render_template, redirect, url
 from flask_pymongo import PyMongo
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from bson.objectid import ObjectId
-from datetime import datetime
-import config, bcrypt
+from datetime import datetime, timezone
 from pymongo.errors import DuplicateKeyError
+from query_utils import current_month_expenses
+from bson.json_util import dumps
 
-app = Flask(__name__)
+import config, bcrypt
+
+app = Flask(__name__, static_folder='static')
 app.config["MONGO_URI"] = config.MONGO_URI
 app.config["SECRET_KEY"] = 'thisisasecretkey'
 app.config['SESSION_COOKIE_SECURE'] = False 
@@ -61,16 +64,44 @@ def login():
         if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
             user = User(str(user["_id"]), user["username"])
             login_user(user)
+            
+            profile = mongo.db.profiles.find_one({"user_id": user.id})
+            if not profile or not all([
+                profile.get('after_tax_income'),
+                profile.get("frequency"),
+                profile.get("budgeting_rule")
+            ]):
+                flash("Please Complete your Profile information.")
+                return redirect(url_for('profile'))
+            
             return redirect(url_for("dashboard"))
         else:
             return redirect(url_for("login"))
     return render_template("login.html")
 
-@app.route("/dashboard")
+@app.route("/dashboard", methods=["GET"])
 @login_required
 def dashboard():
+    expenses = current_month_expenses(current_user.id, mongo.db)
+    total_expense = sum(expense["amount"] for expense in expenses)
     
-    return render_template("dashboard.html", message=current_user.username)
+    category_breakdown = {}
+    for expense in expenses:
+        category = expense["category"]
+        category_breakdown[category] = category_breakdown.get(category, 0) + expense["amount"]
+        
+    #TODO print out the value of sum above before it updates to round how to round off the value to the second decimal point
+        
+    print(f"[DEBUG] Category Breakdown: {category_breakdown}")
+    
+    pie_chart = {
+        "labels" : list(category_breakdown.keys()),
+        "values" : list(category_breakdown.values())
+    }
+    
+    
+    print(f"[DEBUG] Pie Chart: {pie_chart}")
+    return render_template("dashboard.html", total_expense = total_expense, pie_chart = pie_chart )
 
 @app.route("/adding_expense", methods=['GET','POST'])
 @login_required
@@ -98,7 +129,7 @@ def adding_expense():
                     "description": description,
                     "category": category,
                     "amount": amount_converted,
-                    "timestamp": datetime.now()    
+                    "timestamp": datetime.now(timezone.utc)    
                 }}
             )
 
@@ -121,7 +152,7 @@ def adding_expense():
                 "amount": amount_converted,
                 "description": description,
                 "category": category,
-                "timestamp": datetime.now()
+                "timestamp": datetime.now(timezone.utc)
             })
             return redirect(url_for("adding_expense"))
         
@@ -139,6 +170,88 @@ def get_expenses():
         expense["_id"] = str(expense["_id"])
     return jsonify(expenses)
 
+# @app.route("/api/expenses", methods=["GET"])
+# @login_required
+# def get_month_expenses():
+
+#     user_id = current_user.id
+#     today = datetime.now(timezone.utc)
+#     current_month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+
+#     if today.month == 12:
+#         next_month_start = datetime(today.year + 1, 1, 1, tzinfo=timezone.utc)
+#     else:
+#         next_month_start = datetime(today.year, today.month + 1, 1, tzinfo=timezone.utc)
+
+#     expenses = list(mongo.db.expenses.find({
+#         "user_id": ObjectId(user_id),
+#         "timestamp": {"$gte": current_month_start, "$lt": next_month_start}
+#     }))
+
+#     return dumps(expenses), 200  # JSON response
+
+@app.route('/profile', methods=["GET",'POST'])
+@login_required
+def profile():
+    if request.method == 'POST':
+        try:
+            after_tax_income = float(request.form.get('after_tax_income'))
+            frequency = request.form.get('frequency')
+            budget_rule = request.form.get('budget_rule')
+            
+            custom_needs = None
+            custom_wants = None
+            custom_savings = None
+            
+            if budget_rule == 'custom':
+                custom_needs = request.form.get('custom_needs', default=0).strip()
+                custom_wants = request.form.get('custom_wants', default=0).strip()
+                custom_savings = request.form.get('custom_savings', default=0).strip()
+                
+                try:
+                    custom_needs = int(custom_needs)
+                    custom_wants = int(custom_wants)
+                    custom_savings = int(custom_savings)
+                except ValueError:
+                    flash("Custom perventages must be integers.", "danger")
+                    return redirect(url_for("profile"))
+                
+                if custom_needs + custom_wants + custom_savings != 100:
+                    flash("Custom budget rule must total 100.", "danger")
+                    return redirect(url_for("profile"))
+            
+            profile_data = {
+                "after_tax_income": after_tax_income,
+                "frequency": frequency,
+                "budget_rule":budget_rule,
+                "custom_needs": custom_needs,
+                "custom_wants": custom_wants,
+                "custom_savings":custom_savings
+            }   
+            
+            mongo.db.users.update_one(
+                {"_id":ObjectId(current_user.id)},
+                {"$set": {"profile": profile_data}},
+                upsert=True
+            ) 
+            flash("Profile updated successfully!", "success")
+            return redirect(url_for("profile"))
+    
+        except Exception as e:
+            flash(f"An error occurred: {e}", "danger")
+            
+    user_data = mongo.db.users.find_one({"_id": ObjectId(current_user.id)})
+    profile = user_data.get('profile', {
+        "after_tax_income": "",
+        "frequency": "",
+        "budget_rule": "",
+        "custom_needs": "",
+        "custom_wants": "",
+        "custom_savings": ""
+    })
+    
+    return render_template('profile.html', profile = profile)
+        
 @app.route("/logout")
 @login_required
 def logout():

@@ -1,0 +1,23 @@
+.budgeting-rules {
+    display: flex;
+    gap: 10px;
+}
+
+.budget-box {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: center;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 120px;
+}
+
+input[type="radio"] {
+    display: none; /* Hide the default radio button */
+}
+
+input[type="radio"]:checked + .budget-box {
+    border-color: #007bff; /* Highlight the selected option */
+    background-color: #e0f0ff;
+    font-weight: bold;
+}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Page</title>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/profile.css') }}">
+</head>
+<body>
+    <nav>
+        <a href="{{url_for('dashboard')}}">Homes</a>
+        <a href="{{url_for('adding_expense')}}">All Expenses</a>
+        <a href="{{url_for('logout')}}">Logout</a>   
+        <a href="{{url_for('profile')}}">Profile</a>
+    </nav>
+    <div class="container-profile">
+        <div class="pf-ctn">
+            <h1>Profile</h1>
+            <div class="info">
+                <h3>name</h3>
+                <h3>age</h3>
+            </div>
+        </div>
+        <div class="pf-ctn">
+            {% with message = get_flashed_messages(with_categories=true) %}
+            {% if message %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('profile') }}">
+                <div class="pf-form-sec">
+                    <label for="after_tax_income" class="form-label">After-Tax Income:</label>
+                    <input type="number" step="0.01" min="0" class="form-inputs" id="after_tax_income" name="after_tax_income" value="{{ profile.after_tax_income }}" required>
+                </div>
+                <div class="pf-form-sec">
+                    <label for="frequency" class="form-label">Frequency of Payment</label>
+                    <select class="form-select" id="frequency" name="frequency" required>
+                        <option value="weekly" {% if profile.frequency == "weekly" %}selected{% endif %}>Weekly</option>
+                        <option value="biweekly" {% if profile.frequency == "biweekly" %}selected{% endif %}>Biweekly</option>
+                        <option value="monthly" {% if profile.frequency == "monthly" %}selected{% endif %}>Monthly</option>
+                    </select>
+                </div>
+                <div class="pf-form-sec">
+                    <div class="budgeting-rules">
+                        <label>
+                            <input type="radio" name="budgeting_rule" value="50/30/20" 
+                                {% if profile.budgeting_rule == "50/30/20" %}checked{% endif %} required>
+                            <div class="budget-box">50% Needs<br>30% Wants<br>20% Savings</div>
+                        </label>
+                        <label>
+                            <input type="radio" name="budgeting_rule" value="40/40/20" 
+                                {% if profile.budgeting_rule == "40/40/20" %}checked{% endif %} required>
+                            <div class="budget-box">40% Needs<br>40% Wants<br>20% Savings</div>
+                        </label>
+                        <label>
+                            <input type="radio" name="budgeting_rule" value="60/30/10" 
+                                {% if profile.budgeting_rule == "60/30/10" %}checked{% endif %} required>
+                            <div class="budget-box">60% Needs<br>30% Wants<br>10% Savings</div>
+                        </label>
+                        <label>
+                            <input type="radio" name="budgeting_rule" value="custom" 
+                                {% if profile.budgeting_rule == "custom" %}checked{% endif %} required>
+                            <div class="budget-box">Custom Rule<br>(Provide breakdown below)</div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="custom-budgeting-rule" style="{% if profile.budgeting_rule != "custom" %}display: none;{% endif %}">
+                    <label for="custom_needs">Custom Needs (%):</label>
+                    <input type="number" step="1" name="custom_needs" id="custom_needs" min="0" max="100" value="{{ profile.custom_needs or ''}}">
+                    <label for="custom_wants">Custom Wants (%):</label>
+                    <input type="number" step="1" name="custom_wants" id="custom_wants" min="0" max="100" value="{{ profile.custom_wants or ''}}">
+                    <label for="custom_savings">Custom Savings (%):</label>
+                    <input type="number" step="1" name="custom_savings" id="custom_savings" min="0" max="100" value="{{ profile.custom_savings or ''}}">
+                    <small class="info-text">Make sure the total equals 100%.</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const customOption = document.querySelector('input[value="custom"]');
+            const customFields = document.getElementById("custom-budgeting-rule");
+            
+            const toggleCustomFields = () => {
+                if (customOption.checked) {
+                    customFields.style.display = "block";
+                } else {
+                    customFields.style.display = "none";
+                }
+            };
+            
+            document.querySelectorAll('input[name="budgeting_rule"]').forEach((radio) => {
+                radio.addEventListener("change", toggleCustomFields);
+            });
+
+            toggleCustomFields();
+        });
+    </script>
+</body>
+</html>
