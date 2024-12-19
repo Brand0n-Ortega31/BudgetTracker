@@ -17,8 +17,9 @@
         <div class="pf-ctn">
             <h1>Profile</h1>
             <div class="info">
-                <h3>name</h3>
-                <h3>age</h3>
+                <h3>{{ profile.firstName }}</h3>
+                <h3>{{ profile.lastName }}</h3>
+
             </div>
         </div>
         <div class="pf-ctn">
@@ -42,6 +43,7 @@
                     <select class="form-select" id="frequency" name="frequency" required>
                         <option value="weekly" {% if profile.frequency == "weekly" %}selected{% endif %}>Weekly</option>
                         <option value="biweekly" {% if profile.frequency == "biweekly" %}selected{% endif %}>Biweekly</option>
+                        <option value="semimonthly" {% if profile.frequency == "semimonthly" %}selected{% endif %}>Semimonthly</option>
                         <option value="monthly" {% if profile.frequency == "monthly" %}selected{% endif %}>Monthly</option>
                     </select>
                 </div>
@@ -49,22 +51,22 @@
                     <div class="budgeting-rules">
                         <label>
                             <input type="radio" name="budgeting_rule" value="50/30/20" 
-                                {% if profile.budgeting_rule == "50/30/20" %}checked{% endif %} required>
+                                {% if profile.budget_rule == "50/30/20" %}checked{% endif %} required>
                             <div class="budget-box">50% Needs<br>30% Wants<br>20% Savings</div>
                         </label>
                         <label>
                             <input type="radio" name="budgeting_rule" value="40/40/20" 
-                                {% if profile.budgeting_rule == "40/40/20" %}checked{% endif %} required>
+                                {% if profile.budget_rule == "40/40/20" %}checked{% endif %} required>
                             <div class="budget-box">40% Needs<br>40% Wants<br>20% Savings</div>
                         </label>
                         <label>
                             <input type="radio" name="budgeting_rule" value="60/30/10" 
-                                {% if profile.budgeting_rule == "60/30/10" %}checked{% endif %} required>
+                                {% if profile.budget_rule == "60/30/10" %}checked{% endif %} required>
                             <div class="budget-box">60% Needs<br>30% Wants<br>10% Savings</div>
                         </label>
                         <label>
                             <input type="radio" name="budgeting_rule" value="custom" 
-                                {% if profile.budgeting_rule == "custom" %}checked{% endif %} required>
+                                {% if profile.budget_rule == "custom" %}checked{% endif %} required>
                             <div class="budget-box">Custom Rule<br>(Provide breakdown below)</div>
                         </label>
                     </div>
@@ -83,6 +85,15 @@
                 <button type="submit" class="btn btn-primary">Update Profile</button>
             </form>
         </div>
+        <div class="budget-allocation" style="{% if profile.budget_rule %}display: block;{% else %}display: none;{% endif %}">
+            <h1>Based on your After-Tax Income & {{ profile.budget_rule }}</h1>
+            <ol>
+                <li><p><strong>Needs:</strong> ${{ "%.2f" | format(profile.needs | default(0) | float) }}</p></li>
+                <li><p><strong>Wants:</strong> ${{ "%.2f" | format(profile.wants | default(0) | float) }}</p></li>
+                <li><p><strong>Savings:</strong> ${{ "%.2f" | format(profile.savings | default(0) | float) }}</p></li>
+            </ol>
+
+        </div>
     </div>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
@@ -96,12 +107,28 @@
                     customFields.style.display = "none";
                 }
             };
+
+            const SelectedChoice = () => {
+                document.querySelectorAll('.budget-box'). forEach(box => {
+                    box.classList.remove('selected');
+                });
+                
+
+                const selectedRadio = document.querySelector('input[name="budgeting_rule"]:checked');
+                if (selectedRadio) {
+                    selectedRadio.nextElementSibling.classList.add('selected');
+                }
+            };
             
             document.querySelectorAll('input[name="budgeting_rule"]').forEach((radio) => {
-                radio.addEventListener("change", toggleCustomFields);
+                radio.addEventListener("change", () => {
+                    toggleCustomFields();
+                    SelectedChoice();
+                });
             });
 
-            toggleCustomFields();
+            toggleCustomFields();   
+            SelectedChoice();
         });
     </script>
 </body>

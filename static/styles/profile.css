@@ -13,11 +13,12 @@
 }
 
 input[type="radio"] {
-    display: none; /* Hide the default radio button */
+    display: none;
 }
 
-input[type="radio"]:checked + .budget-box {
-    border-color: #007bff; /* Highlight the selected option */
+input[type="radio"]:checked + .budget-box, .selected {
+    border-color: #007bff;
     background-color: #e0f0ff;
     font-weight: bold;
 }
+

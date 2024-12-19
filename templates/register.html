@@ -7,13 +7,33 @@
 </head>
 <body>
     <form method="post" action="{{ url_for('register') }}">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="password" name="password" placeholder="Password" required>
+        <input type="text" id="firstName" name="firstName" placeholder="First Name" required>
+        <input type="text" id="lastName" name="lastName" placeholder="Last Name" required>
+        <input type="text" id="username" name="username" placeholder="Username" required>
+        <input type="password" id="password" name="password" placeholder="Password" required>
+        <input type="password" id="confirm-password" name="confirm-password" placeholder="Confirm Password" required>
+        <label for="show-password">
+            <input type="checkbox" id="show-password" onclick="showPassword()"> Show Password
+        </label>
         <button type="submit">Register</button>
     </form>
     {% if message %}
         <p>{{ message }}</p>
     {% endif %}
     <a href="{{ url_for('login') }}">Already have an account? Log in here</a>
+
+    <script>
+        function showPassword() {
+            const passwordField = document.getElementById("password");
+            const confirmPasswordField = document.getElementById("confirm-password");
+            const showPasswordCheckbox = document.getElementById("show-password");
+
+            const newType = showPasswordCheckbox.checked ? "text" : "password";
+
+            passwordField.type = newType;
+            confirmPasswordField.type = newType;
+        }
+
+    </script>
 </body>
 </html>

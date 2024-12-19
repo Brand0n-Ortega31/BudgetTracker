@@ -30,4 +30,50 @@ def current_month_expenses(user_id, db):
     
     return expenses
     
+
+def applying_budget_rule(profile):
+    after_tax_income = profile.get("after_tax_income")
+    budget_rule = profile.get("budget_rule")
+    frequency = profile.get("frequency")
+
+    if frequency == "weekly":
+        monthly_income = after_tax_income * 52 / 12
+    elif frequency == "biweekly":
+        monthly_income = after_tax_income * 26 / 12
+    elif frequency == "semimonthly":
+        monthly_income = after_tax_income * 2
+    else:
+        monthly_income = after_tax_income
+
+    if budget_rule == "custom":
+        custom_needs = profile.get("custom_needs")
+        custom_wants = profile.get("custom_wants")
+        custom_savings = profile.get("custom_savings")
+        
+        needs_percent = custom_needs
+        wants_percent = custom_wants
+        savings_percent = custom_savings
+    else:
+        needs_percent, wants_percent, savings_percent = map(int, budget_rule.split("/"))
+
+    # We can turn the income to cents and calculate from there
+    total_income_cents = int(monthly_income * 100)
+    needs_cents = total_income_cents * needs_percent // 100
+    wants_cents = total_income_cents * wants_percent // 100
+    savings_cents = total_income_cents * savings_percent // 100
     
+    allocated_cents = needs_cents + wants_cents + savings_cents
+    remainder_cents = total_income_cents - allocated_cents
+
+    needs_cents += remainder_cents
+
+    needs = needs_cents / 100
+    wants = wants_cents / 100
+    savings = savings_cents / 100
+
+    return {
+        "needs": f"{needs:.2f}",
+        "wants": f"{wants:.2f}",
+        "savings": f"{savings:.2f}",
+        "monthly_income": f"{monthly_income:.2f}"
+    }

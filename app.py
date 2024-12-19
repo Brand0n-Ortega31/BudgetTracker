@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from bson.objectid import ObjectId
 from datetime import datetime, timezone
 from pymongo.errors import DuplicateKeyError
-from query_utils import current_month_expenses
+from query_utils import current_month_expenses, applying_budget_rule
 from bson.json_util import dumps
 
 import config, bcrypt
@@ -37,8 +37,16 @@ def register():
     if request.method == 'POST':
         username = request.form.get("username")
         password = request.form.get("password")
+        confirming_password = request.form.get("confirm-password")
+        firstName = request.form.get("firstName")
+        lastName = request.form.get("lastName")
 
-        if not username or not password:
+        if not username or not password or not confirming_password:
+            flash("Please fill in all fields.", "danger")
+            return redirect(url_for("register"))
+        
+        if password != confirming_password:
+            flash("Passwords do not match. Please try again.", "danger")
             return redirect(url_for("register"))
         
         hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
@@ -46,10 +54,13 @@ def register():
         try:
             mongo.db.users.insert_one({
                 "username": username, 
-                "password": hashed_password
+                "password": hashed_password,
+                "first_name": firstName,
+                "last_name": lastName
             })
             return redirect(url_for("login"))
         except DuplicateKeyError:
+            flash("Username already exists. Please choose another one.", "danger")
             return redirect(url_for("register"))
     
     return render_template('register.html')
@@ -61,19 +72,18 @@ def login():
         password = request.form.get("password")
     
         user = mongo.db.users.find_one({"username": username})
+        profile = user.get('profile', {})
         if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
             user = User(str(user["_id"]), user["username"])
             login_user(user)
             
-            profile = mongo.db.profiles.find_one({"user_id": user.id})
-            if not profile or not all([
-                profile.get('after_tax_income'),
-                profile.get("frequency"),
-                profile.get("budgeting_rule")
-            ]):
+            if not profile or not (
+                profile.get('after_tax_income') and
+                profile.get("frequency") and
+                profile.get("budget_rule")
+            ):
                 flash("Please Complete your Profile information.")
                 return redirect(url_for('profile'))
-            
             return redirect(url_for("dashboard"))
         else:
             return redirect(url_for("login"))
@@ -83,30 +93,25 @@ def login():
 @login_required
 def dashboard():
     expenses = current_month_expenses(current_user.id, mongo.db)
-    total_expense = sum(expense["amount"] for expense in expenses)
     
     category_breakdown = {}
     for expense in expenses:
         category = expense["category"]
         category_breakdown[category] = category_breakdown.get(category, 0) + expense["amount"]
-        
-    #TODO print out the value of sum above before it updates to round how to round off the value to the second decimal point
-        
-    print(f"[DEBUG] Category Breakdown: {category_breakdown}")
     
     pie_chart = {
         "labels" : list(category_breakdown.keys()),
         "values" : list(category_breakdown.values())
     }
-    
-    
-    print(f"[DEBUG] Pie Chart: {pie_chart}")
-    return render_template("dashboard.html", total_expense = total_expense, pie_chart = pie_chart )
+
+    total_expense = sum(pie_chart["values"]),
+   
+    return render_template("dashboard.html", total_expense = total_expense)
 
 @app.route("/adding_expense", methods=['GET','POST'])
 @login_required
 def adding_expense():
-    expense_submission = ["Food","Transportation","Utilities","Rent","Entertainment","Credit Card Payment"]
+    expense_submission = ["Groceries","Takeout","Transportation/Gas","Car Payment/Insurance","Utilities","Rent","Entertainment","Credit Card Payment"]
 
     if request.method == 'POST':
         if "edit_expense" in request.form:
@@ -170,26 +175,6 @@ def get_expenses():
         expense["_id"] = str(expense["_id"])
     return jsonify(expenses)
 
-# @app.route("/api/expenses", methods=["GET"])
-# @login_required
-# def get_month_expenses():
-
-#     user_id = current_user.id
-#     today = datetime.now(timezone.utc)
-#     current_month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
-
-#     if today.month == 12:
-#         next_month_start = datetime(today.year + 1, 1, 1, tzinfo=timezone.utc)
-#     else:
-#         next_month_start = datetime(today.year, today.month + 1, 1, tzinfo=timezone.utc)
-
-#     expenses = list(mongo.db.expenses.find({
-#         "user_id": ObjectId(user_id),
-#         "timestamp": {"$gte": current_month_start, "$lt": next_month_start}
-#     }))
-
-#     return dumps(expenses), 200  # JSON response
-
 @app.route('/profile', methods=["GET",'POST'])
 @login_required
 def profile():
@@ -197,13 +182,13 @@ def profile():
         try:
             after_tax_income = float(request.form.get('after_tax_income'))
             frequency = request.form.get('frequency')
-            budget_rule = request.form.get('budget_rule')
+            budgeting_rule = request.form.get('budgeting_rule')
             
             custom_needs = None
             custom_wants = None
             custom_savings = None
             
-            if budget_rule == 'custom':
+            if budgeting_rule == 'custom':
                 custom_needs = request.form.get('custom_needs', default=0).strip()
                 custom_wants = request.form.get('custom_wants', default=0).strip()
                 custom_savings = request.form.get('custom_savings', default=0).strip()
@@ -223,17 +208,26 @@ def profile():
             profile_data = {
                 "after_tax_income": after_tax_income,
                 "frequency": frequency,
-                "budget_rule":budget_rule,
+                "budget_rule":budgeting_rule,
                 "custom_needs": custom_needs,
                 "custom_wants": custom_wants,
                 "custom_savings":custom_savings
             }   
+
+            budget_allocation = applying_budget_rule(profile_data)
+
+            budget_allocation["needs"] = float(budget_allocation["needs"])
+            budget_allocation["wants"] = float(budget_allocation["wants"])
+            budget_allocation["savings"] = float(budget_allocation["savings"])
+
+            profile_data.update(budget_allocation)
             
             mongo.db.users.update_one(
                 {"_id":ObjectId(current_user.id)},
                 {"$set": {"profile": profile_data}},
                 upsert=True
             ) 
+
             flash("Profile updated successfully!", "success")
             return redirect(url_for("profile"))
     
@@ -249,6 +243,13 @@ def profile():
         "custom_wants": "",
         "custom_savings": ""
     })
+
+    profile['firstName'] = user_data.get('first_name')
+    profile['lastName'] = user_data.get('last_name')
+
+    if profile.get("after_tax_income") and profile.get("budget_rule"):
+        budget_allocation = applying_budget_rule(profile)
+        profile.update(budget_allocation)
     
     return render_template('profile.html', profile = profile)
         
